@@ -5,7 +5,7 @@ A modular FastMCP server providing focused system diagnostic tools for efficient
 ## 🚀 Features
 
 ### 📊 Modular Tool Design
-- **9 specialized tools** for targeted diagnostics
+- **10 specialized tools** for targeted diagnostics
 - **Efficient data collection** with minimal overhead
 - **Raw text output** for optimal performance
 - **Cross-platform compatibility** (macOS, Linux, Windows)
@@ -16,6 +16,7 @@ A modular FastMCP server providing focused system diagnostic tools for efficient
 |------|---------|----------------|
 | `get_system_summary` | Quick system overview | Hostname, OS, CPU, RAM, uptime |
 | `get_hardware_details` | Comprehensive hardware specs | CPU cores, memory, GPU detection |
+| `get_display_info` | Display/monitor analysis | Resolution, refresh rate, HDR status |
 | `get_network_status` | Network diagnostics | Interfaces, IPs, DNS, VPN detection |
 | `get_storage_analysis` | Storage overview | Disk usage, partitions, filesystem types |
 | `get_connected_devices` | Peripheral inventory | USB and Bluetooth devices |

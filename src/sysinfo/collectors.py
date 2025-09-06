@@ -196,6 +196,249 @@ def _get_battery_info() -> List[str]:
     return info
 
 
+def get_display_info() -> List[str]:
+    """Get display/monitor information - resolution, refresh rate, HDR status"""
+    info = []
+    info.append("## 🖥️ Display Information")
+    
+    try:
+        if platform.system() == "Darwin":
+            # macOS display detection
+            displays = _get_macos_displays()
+            if displays:
+                for i, display in enumerate(displays, 1):
+                    info.append(f"\n### Display {i}")
+                    for key, value in display.items():
+                        info.append(f"- **{key}**: {value}")
+            else:
+                info.append("- **Status**: No displays detected")
+                
+        elif platform.system() == "Linux":
+            # Linux display detection
+            displays = _get_linux_displays()
+            if displays:
+                for i, display in enumerate(displays, 1):
+                    info.append(f"\n### Display {i}")
+                    for key, value in display.items():
+                        info.append(f"- **{key}**: {value}")
+            else:
+                info.append("- **Status**: No displays detected")
+                
+        elif platform.system() == "Windows":
+            # Windows display detection
+            displays = _get_windows_displays()
+            if displays:
+                for i, display in enumerate(displays, 1):
+                    info.append(f"\n### Display {i}")
+                    for key, value in display.items():
+                        info.append(f"- **{key}**: {value}")
+            else:
+                info.append("- **Status**: No displays detected")
+        else:
+            info.append("- **Status**: Display detection not supported on this platform")
+            
+    except Exception as e:
+        info.append(f"⚠️ **Display detection error**: {str(e)}")
+    
+    return info
+
+
+def _get_macos_displays() -> List[Dict[str, str]]:
+    """Get macOS display information using system_profiler"""
+    displays = []
+    
+    try:
+        # Get display data
+        output = safe_subprocess(["system_profiler", "SPDisplaysDataType", "-json"], timeout=10)
+        if not output:
+            return displays
+            
+        import json
+        data = json.loads(output)
+        
+        for gpu in data.get("SPDisplaysDataType", []):
+            gpu_displays = gpu.get("spdisplays_ndrvs", [])
+            for display in gpu_displays:
+                display_info = {}
+                
+                # Display name/model
+                if "_name" in display:
+                    display_info["Name"] = display["_name"]
+                
+                # Resolution
+                if "_spdisplays_resolution" in display:
+                    display_info["Resolution"] = display["_spdisplays_resolution"]
+                
+                # Refresh rate
+                if "_spdisplays_refresh_rate" in display:
+                    display_info["Refresh Rate"] = f"{display['_spdisplays_refresh_rate']} Hz"
+                
+                # Color depth
+                if "_spdisplays_depth" in display:
+                    display_info["Color Depth"] = display["_spdisplays_depth"]
+                
+                # Connection type
+                if "_spdisplays_connection_type" in display:
+                    display_info["Connection"] = display["_spdisplays_connection_type"]
+                
+                # HDR support (check for relevant keys)
+                hdr_keys = ["_spdisplays_hdr", "_spdisplays_hdr10", "_spdisplays_dolby_vision"]
+                hdr_support = any(key in display for key in hdr_keys)
+                display_info["HDR Support"] = "Yes" if hdr_support else "Unknown"
+                
+                if display_info:
+                    displays.append(display_info)
+                    
+    except Exception:
+        # Fallback to simpler method
+        output = safe_subprocess(["system_profiler", "SPDisplaysDataType"])
+        if output:
+            display_info = {}
+            for line in output.split('\n'):
+                line = line.strip()
+                if 'Resolution:' in line:
+                    display_info["Resolution"] = line.split(':')[-1].strip()
+                elif 'Refresh Rate:' in line:
+                    display_info["Refresh Rate"] = line.split(':')[-1].strip()
+                elif 'Connection Type:' in line:
+                    display_info["Connection"] = line.split(':')[-1].strip()
+            
+            if display_info:
+                displays.append(display_info)
+    
+    return displays
+
+
+def _get_linux_displays() -> List[Dict[str, str]]:
+    """Get Linux display information using xrandr and other tools"""
+    displays = []
+    
+    try:
+        # Try xrandr first (most common)
+        output = safe_subprocess(["xrandr", "--verbose"])
+        if output:
+            current_display = {}
+            for line in output.split('\n'):
+                line = line.strip()
+                
+                # New display detected
+                if ' connected' in line and not line.startswith(' '):
+                    if current_display:
+                        displays.append(current_display)
+                    current_display = {}
+                    
+                    parts = line.split()
+                    if parts:
+                        current_display["Name"] = parts[0]
+                        current_display["Status"] = "Connected"
+                        
+                        # Extract resolution from connection line
+                        for part in parts:
+                            if 'x' in part and part.replace('x', '').replace('+', '').replace('-', '').isdigit():
+                                current_display["Resolution"] = part.split('+')[0]
+                                break
+                
+                # Resolution and refresh rate details
+                elif line and current_display and ('*' in line or '+' in line):
+                    parts = line.split()
+                    if parts and 'x' in parts[0]:
+                        if '*' in line:  # Current mode
+                            current_display["Current Resolution"] = parts[0]
+                            # Extract refresh rate
+                            for part in parts[1:]:
+                                if part.endswith('*') or part.endswith('+'):
+                                    rate = part.rstrip('*+')
+                                    try:
+                                        float(rate)
+                                        current_display["Refresh Rate"] = f"{rate} Hz"
+                                    except ValueError:
+                                        pass
+                
+                # Brightness and other properties
+                elif 'Brightness:' in line:
+                    current_display["Brightness"] = line.split(':')[-1].strip()
+                elif 'Colorspace:' in line:
+                    current_display["Colorspace"] = line.split(':')[-1].strip()
+            
+            if current_display:
+                displays.append(current_display)
+        
+        # Try alternative methods if xrandr failed
+        if not displays:
+            # Try using /sys/class/drm
+            drm_output = safe_subprocess(["ls", "/sys/class/drm/"])
+            if drm_output:
+                for line in drm_output.split('\n'):
+                    if 'card' in line and 'eDP' in line or 'HDMI' in line or 'DP' in line:
+                        displays.append({"Name": line.strip(), "Status": "Detected via DRM"})
+                        
+    except Exception:
+        pass
+    
+    return displays
+
+
+def _get_windows_displays() -> List[Dict[str, str]]:
+    """Get Windows display information using wmic and PowerShell"""
+    displays = []
+    
+    try:
+        # Try PowerShell method first (more detailed)
+        ps_cmd = [
+            "powershell", "-Command",
+            "Get-WmiObject -Class Win32_VideoController | Select-Object Name, VideoModeDescription, RefreshRate, AdapterRAM | Format-List"
+        ]
+        output = safe_subprocess(ps_cmd, timeout=10)
+        
+        if output:
+            current_display = {}
+            for line in output.split('\n'):
+                line = line.strip()
+                if ':' in line:
+                    key, value = line.split(':', 1)
+                    key = key.strip()
+                    value = value.strip()
+                    
+                    if key == "Name" and value:
+                        if current_display:
+                            displays.append(current_display)
+                        current_display = {"Name": value}
+                    elif key == "VideoModeDescription" and value:
+                        current_display["Resolution"] = value
+                    elif key == "RefreshRate" and value and value != "0":
+                        current_display["Refresh Rate"] = f"{value} Hz"
+                    elif key == "AdapterRAM" and value and value != "0":
+                        ram_gb = int(value) / (1024**3)
+                        current_display["Video Memory"] = f"{ram_gb:.1f} GB"
+            
+            if current_display:
+                displays.append(current_display)
+        
+        # Fallback to wmic
+        if not displays:
+            output = safe_subprocess(["wmic", "desktopmonitor", "get", "ScreenWidth,ScreenHeight,Name"])
+            if output:
+                lines = [line.strip() for line in output.split('\n') if line.strip()]
+                if len(lines) > 1:  # Skip header
+                    for line in lines[1:]:
+                        parts = line.split()
+                        if len(parts) >= 2:
+                            try:
+                                width, height = parts[1], parts[0]
+                                if width.isdigit() and height.isdigit():
+                                    displays.append({
+                                        "Resolution": f"{width}x{height}",
+                                        "Status": "Active"
+                                    })
+                            except (ValueError, IndexError):
+                                pass
+                                
+    except Exception:
+        pass
+    
+    return displays
+
+
 def get_network_info() -> List[str]:
     """Get network interface and connectivity information"""
     info = []

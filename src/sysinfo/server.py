@@ -19,7 +19,8 @@ from .collectors import (
     get_time_locale_info,
     get_connectivity_devices,
     get_running_processes,
-    get_network_ports
+    get_network_ports,
+    get_display_info
 )
 
 
@@ -208,6 +209,27 @@ def get_open_ports() -> ToolResult:
 
 
 @mcp.tool
+def get_display_info() -> ToolResult:
+    """Get connected display information - resolution, refresh rate, HDR status.
+    
+    Shows details for all connected monitors including resolution, refresh rates,
+    connection types, and HDR capabilities. Essential for display troubleshooting
+    and multi-monitor setup verification.
+    """
+    info_sections = []
+    info_sections.append("# Display Information")
+    info_sections.append(f"*Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}*\n")
+    
+    try:
+        from .collectors import get_display_info as get_display_data
+        info_sections.extend(get_display_data())
+    except Exception as e:
+        info_sections.append(f"⚠️ **Display detection error**: {str(e)}")
+    
+    return text_response("\n".join(info_sections))
+
+
+@mcp.tool
 def get_full_system_report() -> ToolResult:
     """Get complete system analysis - runs all diagnostic tools.
     
@@ -223,6 +245,7 @@ def get_full_system_report() -> ToolResult:
         # Collect all information sections
         info_sections.extend(get_system_identity())
         info_sections.extend(get_hardware_info())
+        info_sections.extend(get_display_info())
         info_sections.extend(get_network_info())
         info_sections.extend(get_storage_info())
         info_sections.extend(get_connectivity_devices())
