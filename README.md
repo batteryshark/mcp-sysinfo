@@ -2,6 +2,10 @@
 
 A modular FastMCP server providing focused system diagnostic tools for efficient troubleshooting and environment analysis. Each tool targets specific system aspects for optimal performance and clarity.
 
+<a href="https://glama.ai/mcp/servers/@batteryshark/mcp-sysinfo">
+  <img width="380" height="200" src="https://glama.ai/mcp/servers/@batteryshark/mcp-sysinfo/badge" alt="System Information Server MCP server" />
+</a>
+
 ## 🚀 Features
 
 ### 📊 Modular Tool Design
